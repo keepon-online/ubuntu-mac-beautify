@@ -26,55 +26,56 @@ Ubuntu 24.04 GNOME 的 macOS 风格美化项目。
 完整安装：
 
 ```bash
-bash /home/top/ubuntu-mac-beautify/install.sh
+cd ubuntu-mac-beautify
+bash ./install.sh
 ```
 
 常用选项：
 
 ```bash
-bash /home/top/ubuntu-mac-beautify/install.sh --light
-bash /home/top/ubuntu-mac-beautify/install.sh --skip-gdm
-bash /home/top/ubuntu-mac-beautify/install.sh --wallpaper=sonoma
-bash /home/top/ubuntu-mac-beautify/install.sh --show-apps-button
+bash ./install.sh --light
+bash ./install.sh --skip-gdm
+bash ./install.sh --wallpaper=sonoma
+bash ./install.sh --show-apps-button
 ```
 
 只重新应用外观，不重新下载：
 
 ```bash
-bash /home/top/ubuntu-mac-beautify/reapply.sh
+bash ./reapply.sh
 ```
 
 例如重新显示应用列表按钮：
 
 ```bash
-bash /home/top/ubuntu-mac-beautify/reapply.sh --show-apps-button
+bash ./reapply.sh --show-apps-button
 ```
 
 重置当前 GNOME 外观设置：
 
 ```bash
-bash /home/top/ubuntu-mac-beautify/reset.sh
+bash ./reset.sh
 ```
 
 卸载项目安装到用户目录的内容：
 
 ```bash
-bash /home/top/ubuntu-mac-beautify/uninstall.sh
+bash ./uninstall.sh
 ```
 
 做静态检查：
 
 ```bash
-bash /home/top/ubuntu-mac-beautify/check.sh
-make -C /home/top/ubuntu-mac-beautify check
+bash ./check.sh
+make check
 ```
 
 也可以直接用 `make`：
 
 ```bash
-make -C /home/top/ubuntu-mac-beautify install
-make -C /home/top/ubuntu-mac-beautify reapply
-make -C /home/top/ubuntu-mac-beautify reset
+make install
+make reapply
+make reset
 ```
 
 ## 说明
