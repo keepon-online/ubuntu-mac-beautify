@@ -1,7 +1,7 @@
 SHELL := /usr/bin/env bash
 DESKTOP ?= auto
 
-.PHONY: help install install-light install-kde install-kde-light reapply reapply-light reapply-kde reapply-kde-light reset reset-kde uninstall uninstall-kde check
+.PHONY: help install install-light install-kde install-kde-light reapply reapply-light reapply-kde reapply-kde-light reset reset-kde uninstall uninstall-kde check fix-desktop-icons test-fix-desktop-icons
 
 help:
 	@echo "Targets:"
@@ -17,6 +17,8 @@ help:
 	@echo "  make reset-kde          Reset KDE appearance settings"
 	@echo "  make uninstall          Remove project-installed user files"
 	@echo "  make uninstall-kde      Remove KDE-specific user files"
+	@echo "  make fix-desktop-icons  Repair broken GNOME desktop icon metadata"
+	@echo "  make test-fix-desktop-icons  Run desktop icon repair regression tests"
 	@echo "  make check              Run syntax checks"
 
 install:
@@ -54,6 +56,12 @@ uninstall:
 
 uninstall-kde:
 	bash ./uninstall.sh --desktop=kde
+
+fix-desktop-icons:
+	bash ./fix-desktop-icons.sh
+
+test-fix-desktop-icons:
+	bash tests/fix_desktop_icons_test.sh
 
 check:
 	bash ./check.sh

@@ -8,6 +8,7 @@ Ubuntu 24.04 的 macOS 风格美化项目，支持根据用户选择对 `GNOME` 
 - `reapply.sh`: 不重新下载主题，只重新应用外观设置
 - `reset.sh`: 重置当前桌面环境的外观设置
 - `uninstall.sh`: 卸载本项目装到用户目录里的主题、光标、扩展和壁纸
+- `fix-desktop-icons.sh`: 修复用户本地隐藏 `.desktop` 条目导致的 GNOME 任务栏图标错乱
 - `check.sh`: 校验脚本语法，若已安装 `shellcheck` 会自动执行
 - `Makefile`: 提供统一入口
 - `lib/common.sh`: 公共函数、桌面环境检测和桌面环境专属设置逻辑
@@ -93,6 +94,13 @@ bash ./uninstall.sh --desktop=gnome
 bash ./uninstall.sh --desktop=kde
 ```
 
+修复 GNOME 任务栏图标错乱：
+
+```bash
+bash ./fix-desktop-icons.sh
+make fix-desktop-icons
+```
+
 做静态检查：
 
 ```bash
@@ -107,8 +115,11 @@ make install
 make install DESKTOP=gnome
 make install DESKTOP=kde
 make install-kde
+make reapply
 make reapply DESKTOP=kde
+make reset
 make reset-kde
+make fix-desktop-icons
 make uninstall-kde
 ```
 
@@ -129,6 +140,7 @@ make uninstall-kde
 
 - 请用普通用户执行脚本，不要直接用 `sudo bash ...`
 - `install.sh` 会在需要时自行调用 `sudo`
+- `fix-desktop-icons.sh` 只修复 `~/.local/share/applications` 下高置信度命中的隐藏 handler 条目，不会改系统 desktop 文件
 - 如果主题没有立即完全生效，注销后重新登录一次
 - 重复执行 `install.sh` 通常是安全的，但会重新下载上游仓库，并覆盖当前外观设置
 - `uninstall.sh` 默认不会自动恢复 GDM 登录界面
