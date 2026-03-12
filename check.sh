@@ -8,7 +8,9 @@ SCRIPTS=(
   "${PROJECT_ROOT}/reapply.sh"
   "${PROJECT_ROOT}/reset.sh"
   "${PROJECT_ROOT}/uninstall.sh"
+  "${PROJECT_ROOT}/fix-desktop-icons.sh"
   "${PROJECT_ROOT}/lib/common.sh"
+  "${PROJECT_ROOT}/tests/fix_desktop_icons_test.sh"
 )
 
 echo "[INFO] Running bash -n"

@@ -21,6 +21,7 @@ check_not_root() {
 
 check_os() {
   if [[ -r /etc/os-release ]]; then
+    # shellcheck disable=SC1091
     . /etc/os-release
     if [[ "${ID:-}" != "ubuntu" || "${VERSION_ID:-}" != "24.04" ]]; then
       warn "This project targets Ubuntu 24.04. Detected: ${PRETTY_NAME:-unknown}. Continuing anyway."
@@ -303,4 +304,285 @@ apply_appearance_settings() {
     set_gsetting org.gnome.shell.extensions.dash-to-dock show-mounts "false"
     set_gsetting org.gnome.shell.extensions.dash-to-dock show-trash "false"
   fi
+}
+
+desktop_entry_get_value() {
+  local file_path="$1"
+  local key="$2"
+
+  awk -F= -v key="${key}" '
+    index($0, key "=") == 1 {
+      print substr($0, length(key) + 2)
+      exit
+    }
+  ' "${file_path}"
+}
+
+desktop_entry_has_key() {
+  local file_path="$1"
+  local key="$2"
+
+  grep -Eq "^${key}=" "${file_path}"
+}
+
+desktop_entry_is_hidden() {
+  local value
+  value="$(desktop_entry_get_value "$1" "NoDisplay" || true)"
+  [[ "${value,,}" == "true" ]]
+}
+
+normalize_desktop_name() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]_-'
+}
+
+sanitize_desktop_token() {
+  local token="$1"
+
+  token="${token%\"}"
+  token="${token#\"}"
+  token="${token%\'}"
+  token="${token#\'}"
+  printf '%s\n' "${token}"
+}
+
+desktop_entry_exec_basename_from_value() {
+  local exec_value="$1"
+  local -a tokens=()
+  local token=""
+
+  [[ -n "${exec_value}" ]] || return 1
+  read -r -a tokens <<<"${exec_value}"
+
+  for token in "${tokens[@]}"; do
+    token="$(sanitize_desktop_token "${token}")"
+    case "${token}" in
+      ""|env|*/env)
+        continue
+        ;;
+      -*)
+        continue
+        ;;
+      [A-Za-z_][A-Za-z0-9_]*=*)
+        continue
+        ;;
+    esac
+
+    basename "${token}"
+    return 0
+  done
+
+  return 1
+}
+
+desktop_entry_exec_basename() {
+  local exec_value
+  exec_value="$(desktop_entry_get_value "$1" "Exec" || true)"
+  desktop_entry_exec_basename_from_value "${exec_value}"
+}
+
+desktop_entry_has_missing_repair_fields() {
+  local file_path="$1"
+
+  if ! desktop_entry_has_key "${file_path}" "Icon"; then
+    return 0
+  fi
+
+  if ! desktop_entry_has_key "${file_path}" "StartupWMClass"; then
+    return 0
+  fi
+
+  return 1
+}
+
+desktop_entry_list_files() {
+  local dir_path="$1"
+
+  [[ -d "${dir_path}" ]] || return 0
+  find "${dir_path}" -maxdepth 1 -type f -name '*.desktop' -print0
+}
+
+desktop_entry_collect_visible_sources() {
+  local user_dir="$1"
+  local system_dirs_csv="$2"
+  local -a directories=()
+  local directory=""
+  local file_path=""
+
+  directories=("${user_dir}")
+  IFS=':' read -r -a extra_dirs <<<"${system_dirs_csv}"
+  directories+=("${extra_dirs[@]}")
+
+  for directory in "${directories[@]}"; do
+    while IFS= read -r -d '' file_path; do
+      if desktop_entry_is_hidden "${file_path}"; then
+        continue
+      fi
+      printf '%s\0' "${file_path}"
+    done < <(desktop_entry_list_files "${directory}")
+  done
+}
+
+desktop_entry_shares_mime_type() {
+  local left_file="$1"
+  local right_file="$2"
+  local left_mimes=""
+  local right_mimes=""
+  local mime=""
+
+  left_mimes="$(desktop_entry_get_value "${left_file}" "MimeType" || true)"
+  right_mimes="$(desktop_entry_get_value "${right_file}" "MimeType" || true)"
+
+  [[ -n "${left_mimes}" && -n "${right_mimes}" ]] || return 1
+
+  IFS=';' read -r -a left_parts <<<"${left_mimes}"
+  for mime in "${left_parts[@]}"; do
+    [[ -n "${mime}" ]] || continue
+    case ";${right_mimes};" in
+      *";${mime};"*)
+        return 0
+        ;;
+    esac
+  done
+
+  return 1
+}
+
+find_desktop_entry_repair_source() {
+  local candidate_file="$1"
+  local user_dir="$2"
+  local system_dirs_csv="$3"
+  local candidate_exec=""
+  local candidate_name=""
+  local source_exec=""
+  local source_name=""
+  local visible_file=""
+  local -a visible_sources=()
+  local -a mime_matches=()
+  local -a exec_matches=()
+  local -a name_matches=()
+
+  mapfile -d '' -t visible_sources < <(
+    desktop_entry_collect_visible_sources "${user_dir}" "${system_dirs_csv}"
+  )
+
+  for visible_file in "${visible_sources[@]}"; do
+    [[ "${visible_file}" == "${candidate_file}" ]] && continue
+    if desktop_entry_shares_mime_type "${candidate_file}" "${visible_file}"; then
+      mime_matches+=("${visible_file}")
+    fi
+  done
+
+  if [[ "${#mime_matches[@]}" -eq 1 ]]; then
+    printf '%s\n' "${mime_matches[0]}"
+    return 0
+  fi
+
+  if [[ "${#mime_matches[@]}" -gt 1 ]]; then
+    return 2
+  fi
+
+  candidate_exec="$(desktop_entry_exec_basename "${candidate_file}" || true)"
+  if [[ -n "${candidate_exec}" ]]; then
+    for visible_file in "${visible_sources[@]}"; do
+      [[ "${visible_file}" == "${candidate_file}" ]] && continue
+      source_exec="$(desktop_entry_exec_basename "${visible_file}" || true)"
+      if [[ -n "${source_exec}" && "${source_exec}" == "${candidate_exec}" ]]; then
+        exec_matches+=("${visible_file}")
+      fi
+    done
+  fi
+
+  if [[ "${#exec_matches[@]}" -eq 1 ]]; then
+    printf '%s\n' "${exec_matches[0]}"
+    return 0
+  fi
+
+  if [[ "${#exec_matches[@]}" -gt 1 ]]; then
+    return 2
+  fi
+
+  candidate_name="$(normalize_desktop_name "$(desktop_entry_get_value "${candidate_file}" "Name" || true)")"
+  if [[ -n "${candidate_name}" ]]; then
+    for visible_file in "${visible_sources[@]}"; do
+      [[ "${visible_file}" == "${candidate_file}" ]] && continue
+      source_name="$(normalize_desktop_name "$(desktop_entry_get_value "${visible_file}" "Name" || true)")"
+      if [[ -n "${source_name}" && "${source_name}" == "${candidate_name}" ]]; then
+        name_matches+=("${visible_file}")
+      fi
+    done
+  fi
+
+  if [[ "${#name_matches[@]}" -eq 1 ]]; then
+    printf '%s\n' "${name_matches[0]}"
+    return 0
+  fi
+
+  if [[ "${#name_matches[@]}" -gt 1 ]]; then
+    return 2
+  fi
+
+  return 1
+}
+
+backup_file_with_timestamp() {
+  local file_path="$1"
+  local backup_path=""
+
+  backup_path="${file_path}.bak.$(date +%Y%m%d%H%M%S)"
+  cp -p "${file_path}" "${backup_path}"
+  printf '%s\n' "${backup_path}"
+}
+
+patch_desktop_entry_missing_fields() {
+  local file_path="$1"
+  local icon_value="${2:-}"
+  local wmclass_value="${3:-}"
+  local temp_file=""
+
+  temp_file="$(mktemp)"
+
+  awk -v icon_value="${icon_value}" -v wmclass_value="${wmclass_value}" '
+    function print_missing() {
+      if (inserted) {
+        return
+      }
+      if (icon_value != "") {
+        print "Icon=" icon_value
+      }
+      if (wmclass_value != "") {
+        print "StartupWMClass=" wmclass_value
+      }
+      inserted = 1
+    }
+
+    $0 == "[Desktop Entry]" {
+      if (in_desktop_entry && !inserted) {
+        print_missing()
+      }
+      in_desktop_entry = 1
+      print
+      next
+    }
+
+    in_desktop_entry && /^\[/ {
+      if (!inserted) {
+        print_missing()
+      }
+      in_desktop_entry = 0
+      print
+      next
+    }
+
+    {
+      print
+    }
+
+    END {
+      if (in_desktop_entry && !inserted) {
+        print_missing()
+      }
+    }
+  ' "${file_path}" >"${temp_file}"
+
+  mv "${temp_file}" "${file_path}"
 }
