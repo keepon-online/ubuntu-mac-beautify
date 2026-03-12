@@ -6,9 +6,13 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${PROJECT_ROOT}/lib/common.sh"
 
 DISABLE_BLUR="true"
+DESKTOP="auto"
 
 for arg in "$@"; do
   case "${arg}" in
+    --desktop=*)
+      DESKTOP="$(normalize_desktop "${arg#*=}")" || die "Unsupported desktop: ${arg#*=}"
+      ;;
     --keep-blur)
       DISABLE_BLUR="false"
       ;;
@@ -17,7 +21,8 @@ for arg in "$@"; do
 Usage: ./reset.sh [options]
 
 Options:
-  --keep-blur     Do not disable Blur my Shell
+  --desktop=DESKTOP    auto (default), gnome, or kde
+  --keep-blur          Do not disable Blur my Shell (GNOME only)
 EOF
       exit 0
       ;;
@@ -27,17 +32,34 @@ EOF
   esac
 done
 
+DESKTOP="$(resolve_desktop "${DESKTOP}")"
+
 check_not_root
 check_os
+warn_if_session_mismatch "${DESKTOP}"
 
-if [[ "${DISABLE_BLUR}" == "true" ]]; then
-  disable_extensions
+if [[ "${DESKTOP}" == "gnome" ]]; then
+  if [[ "${DISABLE_BLUR}" == "true" ]]; then
+    disable_extensions
+  fi
+
+  reset_appearance_settings
+else
+  if [[ "${DISABLE_BLUR}" == "false" ]]; then
+    warn "--keep-blur is a GNOME-only option and will be ignored for KDE."
+  fi
+
+  reset_kde_appearance_settings
 fi
-
-reset_appearance_settings
 
 info "Done"
 echo
 echo "Project           : ${PROJECT_ROOT}"
-echo "Blur disabled     : ${DISABLE_BLUR}"
-echo "If GNOME does not refresh immediately, log out and log back in once."
+echo "Desktop target    : ${DESKTOP}"
+if [[ "${DESKTOP}" == "gnome" ]]; then
+  echo "Blur disabled     : ${DISABLE_BLUR}"
+  echo "If GNOME does not refresh immediately, log out and log back in once."
+else
+  echo "KDE reset         : attempted"
+  echo "If Plasma does not refresh immediately, log out and log back in once."
+fi

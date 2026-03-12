@@ -1,66 +1,96 @@
 # Ubuntu Mac Beautify
 
-Ubuntu 24.04 GNOME 的 macOS 风格美化项目。
+Ubuntu 24.04 的 macOS 风格美化项目，支持根据用户选择对 `GNOME` 或 `KDE Plasma` 应用不同的美化流程。
 
 这个项目把原本的单文件脚本整理成了可维护的目录结构：
 
 - `install.sh`: 完整安装并应用 macOS 风格主题
 - `reapply.sh`: 不重新下载主题，只重新应用外观设置
-- `reset.sh`: 只重置 GNOME 外观设置
+- `reset.sh`: 重置当前桌面环境的外观设置
 - `uninstall.sh`: 卸载本项目装到用户目录里的主题、光标、扩展和壁纸
 - `check.sh`: 校验脚本语法，若已安装 `shellcheck` 会自动执行
 - `Makefile`: 提供统一入口
-- `lib/common.sh`: 公共函数和 GNOME 设置逻辑
+- `lib/common.sh`: 公共函数、桌面环境检测和桌面环境专属设置逻辑
 
 ## 功能
 
-- 安装 `WhiteSur` GTK / Shell / Icon 主题
-- 安装 `McMojave-cursors`
-- 安装并启用 `Blur my Shell`
-- 配置底部 Dock、左侧窗口按钮、字体和壁纸
-- 可选美化 GDM 登录界面
-- 兼容 Ubuntu 24.04 默认的 `Ubuntu Dock`
+- 统一支持 `--desktop=auto|gnome|kde`
+- GNOME:
+  - 安装 `WhiteSur` GTK / Shell / Icon 主题
+  - 安装 `McMojave-cursors`
+  - 安装并启用 `Blur my Shell`
+  - 配置底部 Dock、左侧窗口按钮、字体和壁纸
+  - 可选美化 GDM 登录界面
+  - 兼容 Ubuntu 24.04 默认的 `Ubuntu Dock`
+- KDE:
+  - 安装 `WhiteSur-gtk-theme` 作为 GTK 应用主题
+  - 根据壁纸系列安装对应的 KDE 全局主题仓库
+  - 默认支持 `WhiteSur-kde`，`ventura` / `sonoma` / `sequoia` 会自动切到对应的 macOS 风格 KDE 仓库
+  - 安装 `WhiteSur-icon-theme` 和 `McMojave-cursors`
+  - 尝试自动应用 KDE 全局主题、壁纸、光标、图标、颜色方案、字体和 Kvantum
+  - 同步 GTK 2 / 3 / 4 主题配置，减少 KDE 下 GTK 应用风格割裂
+  - 把窗口按钮布局调整为 macOS 风格的左侧 `关闭 / 最小化 / 最大化`
+  - 对 `ventura` / `sonoma` / `sequoia` 默认优先使用圆角窗口装饰变体
+  - 尝试把 Plasma 面板调整为底部、浮动、居中的 Dock 风格
+  - 尝试为 Plasma 任务管理器预钉常用应用，例如文件管理器、浏览器、终端、截图和系统设置
 
 ## 使用
 
-完整安装：
+默认完整安装：
 
 ```bash
 cd ubuntu-mac-beautify
 bash ./install.sh
 ```
 
+显式选择 GNOME：
+
+```bash
+bash ./install.sh --desktop=gnome
+```
+
+显式选择 KDE：
+
+```bash
+bash ./install.sh --desktop=kde
+```
+
 常用选项：
 
 ```bash
-bash ./install.sh --light
-bash ./install.sh --skip-gdm
-bash ./install.sh --wallpaper=sonoma
-bash ./install.sh --show-apps-button
+bash ./install.sh --desktop=gnome --light
+bash ./install.sh --desktop=gnome --skip-gdm
+bash ./install.sh --desktop=gnome --skip-blur
+bash ./install.sh --desktop=kde --wallpaper=sonoma
+bash ./install.sh --desktop=kde --light
+bash ./install.sh --desktop=kde --kde-round
+bash ./install.sh --desktop=kde --kde-no-round
+bash ./install.sh --desktop=kde --skip-kde-panel
+bash ./install.sh --desktop=kde --skip-kde-launchers
 ```
 
 只重新应用外观，不重新下载：
 
 ```bash
-bash ./reapply.sh
+bash ./reapply.sh --desktop=gnome
+bash ./reapply.sh --desktop=kde
+bash ./reapply.sh --desktop=kde --kde-round
+bash ./reapply.sh --desktop=kde --skip-kde-panel
+bash ./reapply.sh --desktop=kde --skip-kde-launchers
 ```
 
-例如重新显示应用列表按钮：
+重置当前桌面外观设置：
 
 ```bash
-bash ./reapply.sh --show-apps-button
-```
-
-重置当前 GNOME 外观设置：
-
-```bash
-bash ./reset.sh
+bash ./reset.sh --desktop=gnome
+bash ./reset.sh --desktop=kde
 ```
 
 卸载项目安装到用户目录的内容：
 
 ```bash
-bash ./uninstall.sh
+bash ./uninstall.sh --desktop=gnome
+bash ./uninstall.sh --desktop=kde
 ```
 
 做静态检查：
@@ -74,21 +104,42 @@ make check
 
 ```bash
 make install
-make reapply
-make reset
+make install DESKTOP=gnome
+make install DESKTOP=kde
+make install-kde
+make reapply DESKTOP=kde
+make reset-kde
+make uninstall-kde
 ```
+
+## KDE 说明
+
+- `--desktop=auto` 会优先根据当前会话环境变量判断，如果判断失败，默认回退到 `gnome`
+- KDE 的自动应用依赖当前系统里存在 `plasma-apply-lookandfeel`、`plasma-apply-wallpaperimage`、`kwriteconfig5/6` 等命令
+- `bash ./install.sh --desktop=kde` 会先检查系统里是否已安装 KDE Plasma 会话；如果未安装，会直接报错并提示先装 `kde-standard`
+- 面板 Dock 风格依赖 `qdbus` / `qdbus6` 与当前 Plasma DBus 会话可用
+- 如果你在非 Plasma 会话里执行 `--desktop=kde`，主题文件仍会安装，但自动应用可能不完整
+- KDE 路线会额外同步 `~/.config/gtk-3.0/settings.ini`、`~/.config/gtk-4.0/settings.ini` 和 `~/.gtkrc-2.0`
+- 默认预钉应用会按系统已安装的 `.desktop` 文件自动挑选；如果你不想改任务栏固定项，可加 `--skip-kde-launchers`
+- `ventura` / `sonoma` / `sequoia` 默认会优先选择圆角窗口装饰；如果你更喜欢默认变体，可加 `--kde-no-round`
+- KDE 的 light/dark 细节取决于上游全局主题变体；必要时在“系统设置 -> 全局主题 / 图标 / 光标 / Kvantum”中手动确认一次
+- 面板布局是 best-effort；如果你不想改面板，可加 `--skip-kde-panel`
 
 ## 说明
 
 - 请用普通用户执行脚本，不要直接用 `sudo bash ...`
 - `install.sh` 会在需要时自行调用 `sudo`
-- 如果主题或模糊效果没有立即完全生效，注销后重新登录一次
+- 如果主题没有立即完全生效，注销后重新登录一次
 - 重复执行 `install.sh` 通常是安全的，但会重新下载上游仓库，并覆盖当前外观设置
 - `uninstall.sh` 默认不会自动恢复 GDM 登录界面
 
 ## 上游项目
 
 - https://github.com/vinceliuice/WhiteSur-gtk-theme
+- https://github.com/vinceliuice/WhiteSur-kde
+- https://github.com/vinceliuice/MacVentura-kde
+- https://github.com/vinceliuice/MacSonoma-kde
+- https://github.com/vinceliuice/MacSequoia-kde
 - https://github.com/vinceliuice/WhiteSur-icon-theme
 - https://github.com/vinceliuice/McMojave-cursors
 - https://github.com/vinceliuice/WhiteSur-wallpapers

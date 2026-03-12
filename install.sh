@@ -12,6 +12,10 @@ WITH_BLUR="true"
 WITH_FLATPAK_FIX="true"
 WALLPAPER_SERIES="ventura"
 SHOW_APPS_BUTTON="false"
+DESKTOP="auto"
+WITH_KDE_PANEL="true"
+WITH_KDE_LAUNCHERS="true"
+KDE_ROUND="auto"
 
 for arg in "$@"; do
   case "${arg}" in
@@ -20,6 +24,9 @@ for arg in "$@"; do
       ;;
     --dark)
       MODE="dark"
+      ;;
+    --desktop=*)
+      DESKTOP="$(normalize_desktop "${arg#*=}")" || die "Unsupported desktop: ${arg#*=}"
       ;;
     --skip-gdm)
       WITH_GDM="false"
@@ -33,6 +40,18 @@ for arg in "$@"; do
     --show-apps-button)
       SHOW_APPS_BUTTON="true"
       ;;
+    --skip-kde-panel)
+      WITH_KDE_PANEL="false"
+      ;;
+    --skip-kde-launchers)
+      WITH_KDE_LAUNCHERS="false"
+      ;;
+    --kde-round)
+      KDE_ROUND="true"
+      ;;
+    --kde-no-round)
+      KDE_ROUND="false"
+      ;;
     --keep-workdir)
       KEEP_WORKDIR="true"
       ;;
@@ -44,14 +63,19 @@ for arg in "$@"; do
 Usage: ./install.sh [options]
 
 Options:
-  --dark                Use the dark WhiteSur theme (default)
-  --light               Use the light WhiteSur theme
-  --skip-gdm            Do not style the login screen
-  --skip-blur           Do not install Blur my Shell
-  --skip-flatpak-fix    Skip Flatpak theme integration
-  --show-apps-button    Show the app grid button in the dock
-  --wallpaper=SERIES    Wallpaper series hint, e.g. ventura or sonoma
-  --keep-workdir        Keep the temporary repo checkout for inspection
+  --desktop=DESKTOP      auto (default), gnome, or kde
+  --dark                 Use the dark WhiteSur theme (default)
+  --light                Use the light WhiteSur theme
+  --skip-gdm             Do not style the login screen (GNOME only)
+  --skip-blur            Do not install Blur my Shell (GNOME only)
+  --skip-flatpak-fix     Skip Flatpak theme integration
+  --show-apps-button     Show the app grid button in the dock (GNOME only)
+  --skip-kde-panel       Do not restyle the Plasma panel (KDE only)
+  --skip-kde-launchers   Do not configure default pinned apps on the Plasma panel (KDE only)
+  --kde-round            Prefer rounded KDE window decorations (default for Ventura / Sonoma / Sequoia)
+  --kde-no-round         Prefer the default KDE window decoration variant
+  --wallpaper=SERIES     Wallpaper series hint, e.g. ventura or sonoma
+  --keep-workdir         Keep the temporary repo checkout for inspection
 EOF
       exit 0
       ;;
@@ -61,22 +85,27 @@ EOF
   esac
 done
 
+DESKTOP="$(resolve_desktop "${DESKTOP}")"
+if [[ "${KDE_ROUND}" == "auto" ]]; then
+  KDE_ROUND="$(default_kde_round_style "${WALLPAPER_SERIES}")"
+fi
+
 check_not_root
 check_os
 require_command sudo
+warn_if_session_mismatch "${DESKTOP}"
 
-PACKAGES=(
+if [[ "${DESKTOP}" == "kde" ]] && ! has_kde_session_installed; then
+  die "KDE Plasma session is not installed. Install it first, for example: sudo apt install kde-standard sddm"
+fi
+
+COMMON_PACKAGES=(
   curl
   fonts-inter
   fonts-jetbrains-mono
   fonts-noto-cjk
   gettext
   git
-  gnome-shell-extension-manager
-  gnome-shell-extensions
-  gnome-tweaks
-  gtk2-engines-murrine
-  gtk2-engines-pixbuf
   imagemagick
   inkscape
   libglib2.0-dev-bin
@@ -86,6 +115,30 @@ PACKAGES=(
   sassc
   wget
 )
+
+GNOME_PACKAGES=(
+  gnome-shell-extension-manager
+  gnome-shell-extensions
+  gnome-tweaks
+  gtk2-engines-murrine
+  gtk2-engines-pixbuf
+)
+
+KDE_PACKAGES=(
+  breeze-gtk-theme
+  gtk2-engines-murrine
+  gtk2-engines-pixbuf
+  kde-config-gtk-style
+  qt5-style-kvantum
+  qt5-style-kvantum-themes
+)
+
+PACKAGES=("${COMMON_PACKAGES[@]}")
+if [[ "${DESKTOP}" == "gnome" ]]; then
+  PACKAGES+=("${GNOME_PACKAGES[@]}")
+else
+  PACKAGES+=("${KDE_PACKAGES[@]}")
+fi
 
 WORKDIR="$(mktemp -d)"
 cleanup() {
@@ -98,6 +151,29 @@ trap cleanup EXIT
 WALLPAPER_DIR="${HOME}/.local/share/backgrounds/codex-macos-style"
 WALLPAPER_BASENAME="${WALLPAPER_DIR}/macos-${WALLPAPER_SERIES}-${MODE}"
 GNOME_MAJOR="$(get_gnome_major || true)"
+KDE_THEME_REPO_URL="$(get_kde_theme_repo_url "${WALLPAPER_SERIES}")"
+
+if [[ "${DESKTOP}" == "kde" ]]; then
+  if [[ "${WITH_GDM}" == "false" ]]; then
+    warn "--skip-gdm is a GNOME-only option and will be ignored for KDE."
+  fi
+  if [[ "${WITH_BLUR}" == "false" ]]; then
+    warn "--skip-blur is a GNOME-only option and will be ignored for KDE."
+  fi
+  if [[ "${SHOW_APPS_BUTTON}" == "true" ]]; then
+    warn "--show-apps-button is a GNOME-only option and will be ignored for KDE."
+  fi
+  if ! has_command plasmashell; then
+    warn "Plasma shell was not detected. KDE theme files will still be installed, but automatic application only works reliably inside a KDE Plasma session."
+  fi
+else
+  if [[ "${WITH_KDE_PANEL}" == "false" ]]; then
+    warn "--skip-kde-panel is a KDE-only option and will be ignored for GNOME."
+  fi
+  if [[ "${WITH_KDE_LAUNCHERS}" == "false" ]]; then
+    warn "--skip-kde-launchers is a KDE-only option and will be ignored for GNOME."
+  fi
+fi
 
 info "Refreshing package index"
 sudo apt update
@@ -111,7 +187,11 @@ git clone --depth=1 https://github.com/vinceliuice/WhiteSur-icon-theme.git "${WO
 git clone --depth=1 https://github.com/vinceliuice/McMojave-cursors.git "${WORKDIR}/McMojave-cursors"
 git clone --depth=1 https://github.com/vinceliuice/WhiteSur-wallpapers.git "${WORKDIR}/WhiteSur-wallpapers"
 
-if [[ "${WITH_BLUR}" == "true" ]]; then
+if [[ "${DESKTOP}" == "kde" ]]; then
+  git clone --depth=1 "${KDE_THEME_REPO_URL}" "${WORKDIR}/$(kde_theme_label "${WALLPAPER_SERIES}")"
+fi
+
+if [[ "${DESKTOP}" == "gnome" && "${WITH_BLUR}" == "true" ]]; then
   if [[ -n "${GNOME_MAJOR}" ]]; then
     info "Cloning Blur my Shell for GNOME Shell ${GNOME_MAJOR}"
     clone_blur_my_shell \
@@ -124,11 +204,30 @@ if [[ "${WITH_BLUR}" == "true" ]]; then
   fi
 fi
 
-info "Installing WhiteSur GTK and Shell theme"
-(
-  cd "${WORKDIR}/WhiteSur-gtk-theme"
-  ./install.sh -l --shell -c "${MODE}" -t blue
-)
+if [[ "${DESKTOP}" == "gnome" ]]; then
+  info "Installing WhiteSur GTK and Shell theme"
+  (
+    cd "${WORKDIR}/WhiteSur-gtk-theme"
+    ./install.sh -l --shell -c "${MODE}" -t blue
+  )
+else
+  info "Installing WhiteSur GTK theme for GTK apps"
+  (
+    cd "${WORKDIR}/WhiteSur-gtk-theme"
+    ./install.sh -l -c "${MODE}" -t blue
+  )
+
+  info "Installing KDE global theme"
+  (
+    cd "${WORKDIR}/$(kde_theme_label "${WALLPAPER_SERIES}")"
+    KDE_THEME_ARGS="$(kde_theme_install_args "${WALLPAPER_SERIES}" "${KDE_ROUND}")"
+    if [[ -n "${KDE_THEME_ARGS}" ]]; then
+      ./install.sh "${KDE_THEME_ARGS}"
+    else
+      ./install.sh
+    fi
+  )
+fi
 
 info "Installing WhiteSur icon theme"
 (
@@ -142,22 +241,24 @@ info "Installing McMojave cursor theme"
   ./install.sh
 )
 
-if has_extension_uuid "dash-to-dock@micxgx.gmail.com"; then
-  info "Applying WhiteSur dock tweaks"
-  (
-    cd "${WORKDIR}/WhiteSur-gtk-theme"
-    ./tweaks.sh -d
-  )
-else
-  warn "Standalone Dash to Dock is not installed. Skipping WhiteSur dock tweaks and keeping Ubuntu Dock settings."
-fi
+if [[ "${DESKTOP}" == "gnome" ]]; then
+  if has_extension_uuid "dash-to-dock@micxgx.gmail.com"; then
+    info "Applying WhiteSur dock tweaks"
+    (
+      cd "${WORKDIR}/WhiteSur-gtk-theme"
+      ./tweaks.sh -d
+    )
+  else
+    warn "Standalone Dash to Dock is not installed. Skipping WhiteSur dock tweaks and keeping Ubuntu Dock settings."
+  fi
 
-if [[ "${WITH_FLATPAK_FIX}" == "true" ]] && has_command flatpak; then
-  info "Applying Flatpak theme integration"
-  (
-    cd "${WORKDIR}/WhiteSur-gtk-theme"
-    ./tweaks.sh -F || warn "WhiteSur Flatpak tweak failed."
-  )
+  if [[ "${WITH_FLATPAK_FIX}" == "true" ]] && has_command flatpak; then
+    info "Applying Flatpak theme integration"
+    (
+      cd "${WORKDIR}/WhiteSur-gtk-theme"
+      ./tweaks.sh -F || warn "WhiteSur Flatpak tweak failed."
+    )
+  fi
 fi
 
 mkdir -p "${WALLPAPER_DIR}"
@@ -168,7 +269,7 @@ WALLPAPER_EXT="${WALLPAPER_SRC##*.}"
 WALLPAPER_DST="${WALLPAPER_BASENAME}.${WALLPAPER_EXT}"
 cp -f "${WALLPAPER_SRC}" "${WALLPAPER_DST}"
 
-if [[ "${WITH_GDM}" == "true" ]]; then
+if [[ "${DESKTOP}" == "gnome" && "${WITH_GDM}" == "true" ]]; then
   info "Styling the login screen"
   (
     cd "${WORKDIR}/WhiteSur-gtk-theme"
@@ -177,7 +278,7 @@ if [[ "${WITH_GDM}" == "true" ]]; then
   )
 fi
 
-if [[ "${WITH_BLUR}" == "true" ]]; then
+if [[ "${DESKTOP}" == "gnome" && "${WITH_BLUR}" == "true" ]]; then
   info "Installing Blur my Shell"
   (
     cd "${WORKDIR}/blur-my-shell"
@@ -185,17 +286,37 @@ if [[ "${WITH_BLUR}" == "true" ]]; then
   )
 fi
 
-enable_extensions "${WITH_BLUR}"
-apply_appearance_settings "${MODE}" "${WALLPAPER_DST}" "${SHOW_APPS_BUTTON}"
+if [[ "${DESKTOP}" == "gnome" ]]; then
+  enable_extensions "${WITH_BLUR}"
+  apply_appearance_settings "${MODE}" "${WALLPAPER_DST}" "${SHOW_APPS_BUTTON}"
+else
+  apply_kde_appearance_settings "${MODE}" "${WALLPAPER_DST}" "${WALLPAPER_SERIES}" "${WITH_KDE_PANEL}" "${WITH_KDE_LAUNCHERS}" "${KDE_ROUND}"
+fi
 
 info "Done"
 echo
 echo "Project           : ${PROJECT_ROOT}"
-echo "Applied theme     : $(theme_name_for_mode "${MODE}")"
+echo "Desktop target    : ${DESKTOP}"
+if [[ "${DESKTOP}" == "gnome" ]]; then
+  echo "Applied theme     : $(theme_name_for_mode "${MODE}")"
+  echo "Blur my Shell     : ${WITH_BLUR}"
+  echo "GDM styled        : ${WITH_GDM}"
+else
+  echo "Applied theme     : $(kde_theme_label "${WALLPAPER_SERIES}")"
+  echo "GTK theme         : $(theme_name_for_mode "${MODE}")"
+  echo "GTK 3/4 sync      : enabled"
+  echo "Window buttons    : left (close/minimize/maximize)"
+  echo "Rounded windows   : ${KDE_ROUND}"
+  echo "Plasma panel      : ${WITH_KDE_PANEL}"
+  echo "Pinned apps       : ${WITH_KDE_LAUNCHERS}"
+  echo "Kvantum           : attempted"
+fi
 echo "Applied icons     : WhiteSur"
 echo "Applied cursor    : McMojave-cursors"
 echo "Wallpaper series  : ${WALLPAPER_SERIES}"
-echo "GDM styled        : ${WITH_GDM}"
-echo "Blur my Shell     : ${WITH_BLUR}"
 echo
-echo "If the shell theme or blur effect does not fully apply, log out and log back in once."
+if [[ "${DESKTOP}" == "gnome" ]]; then
+  echo "If the shell theme or blur effect does not fully apply, log out and log back in once."
+else
+  echo "If the KDE global theme does not fully apply, log into a Plasma session and verify Global Theme, Icons, and Kvantum once in System Settings."
+fi
