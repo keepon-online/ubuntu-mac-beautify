@@ -1196,7 +1196,14 @@ desktop_entry_get_value() {
   local key="$2"
 
   awk -F= -v key="${key}" '
-    index($0, key "=") == 1 {
+    $0 == "[Desktop Entry]" {
+      in_desktop_entry = 1
+      next
+    }
+    in_desktop_entry && /^\[/ {
+      exit
+    }
+    in_desktop_entry && index($0, key "=") == 1 {
       print substr($0, length(key) + 2)
       exit
     }
@@ -1207,7 +1214,22 @@ desktop_entry_has_key() {
   local file_path="$1"
   local key="$2"
 
-  grep -Eq "^${key}=" "${file_path}"
+  awk -F= -v key="${key}" '
+    $0 == "[Desktop Entry]" {
+      in_desktop_entry = 1
+      next
+    }
+    in_desktop_entry && /^\[/ {
+      exit
+    }
+    in_desktop_entry && index($0, key "=") == 1 {
+      found = 1
+      exit
+    }
+    END {
+      exit(found ? 0 : 1)
+    }
+  ' "${file_path}"
 }
 
 desktop_entry_is_hidden() {
@@ -1292,16 +1314,22 @@ desktop_entry_collect_visible_sources() {
   local -a directories=()
   local directory=""
   local file_path=""
+  declare -A seen_files=()
 
   directories=("${user_dir}")
   IFS=':' read -r -a extra_dirs <<<"${system_dirs_csv}"
   directories+=("${extra_dirs[@]}")
 
   for directory in "${directories[@]}"; do
+    [[ -n "${directory}" ]] || continue
     while IFS= read -r -d '' file_path; do
       if desktop_entry_is_hidden "${file_path}"; then
         continue
       fi
+      if [[ -n "${seen_files["${file_path}"]+x}" ]]; then
+        continue
+      fi
+      seen_files["${file_path}"]=1
       printf '%s\0' "${file_path}"
     done < <(desktop_entry_list_files "${directory}")
   done
@@ -1423,8 +1451,10 @@ patch_desktop_entry_missing_fields() {
   local icon_value="${2:-}"
   local wmclass_value="${3:-}"
   local temp_file=""
+  local original_mode=""
 
   temp_file="$(mktemp)"
+  original_mode="$(stat -c '%a' "${file_path}")"
 
   awk -v icon_value="${icon_value}" -v wmclass_value="${wmclass_value}" '
     function print_missing() {
@@ -1470,4 +1500,5 @@ patch_desktop_entry_missing_fields() {
   ' "${file_path}" >"${temp_file}"
 
   mv "${temp_file}" "${file_path}"
+  chmod "${original_mode}" "${file_path}"
 }

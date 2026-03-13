@@ -45,9 +45,10 @@ write_desktop_file() {
 run_repair() {
   local workspace="$1"
   local output_file="$2"
+  local system_dirs="${3:-${workspace}/system-applications}"
 
   USER_APPLICATIONS_DIR="${workspace}/user-applications" \
-  SYSTEM_APPLICATIONS_DIRS="${workspace}/system-applications" \
+  SYSTEM_APPLICATIONS_DIRS="${system_dirs}" \
   UPDATE_DESKTOP_DATABASE_BIN=true \
   bash "${SCRIPT_PATH}" >"${output_file}" 2>&1
 }
@@ -177,11 +178,111 @@ test_complete_entry_is_unchanged() {
   assert_contains "${output_file}" "unchanged=1"
 }
 
+test_duplicate_user_dir_does_not_create_false_ambiguity() {
+  local workspace output_file handler_file user_app_file
+  workspace="$(mktemp -d)"
+  output_file="${workspace}/output.txt"
+  handler_file="${workspace}/user-applications/sample-handler.desktop"
+  user_app_file="${workspace}/user-applications/sample.desktop"
+
+  write_desktop_file \
+    "${handler_file}" \
+    "Type=Application" \
+    "Name=Sample App" \
+    "Exec=/usr/bin/sample-app" \
+    "NoDisplay=true"
+
+  write_desktop_file \
+    "${user_app_file}" \
+    "Type=Application" \
+    "Name=Sample App" \
+    "Exec=/usr/bin/sample-app" \
+    "Icon=sample-icon" \
+    "StartupWMClass=sample-wmclass"
+
+  run_repair "${workspace}" "${output_file}" "${workspace}/user-applications:${workspace}/system-applications"
+
+  assert_contains "${handler_file}" "Icon=sample-icon"
+  assert_contains "${handler_file}" "StartupWMClass=sample-wmclass"
+  assert_contains "${output_file}" "fixed=1"
+  assert_contains "${output_file}" "skipped=0"
+}
+
+test_desktop_action_icon_does_not_block_repair() {
+  local workspace output_file handler_file
+  workspace="$(mktemp -d)"
+  output_file="${workspace}/output.txt"
+  handler_file="${workspace}/user-applications/action-only.desktop"
+
+  mkdir -p "${workspace}/user-applications"
+  cat >"${handler_file}" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Action App
+Exec=/usr/bin/action-app
+NoDisplay=true
+
+[Desktop Action NewWindow]
+Icon=wrong-action-icon
+StartupWMClass=wrong-action-class
+EOF
+
+  write_desktop_file \
+    "${workspace}/system-applications/action-app.desktop" \
+    "Type=Application" \
+    "Name=Action App" \
+    "Exec=/usr/bin/action-app" \
+    "Icon=real-app-icon" \
+    "StartupWMClass=real-app-class"
+
+  run_repair "${workspace}" "${output_file}"
+
+  assert_contains "${handler_file}" "Icon=real-app-icon"
+  assert_contains "${handler_file}" "StartupWMClass=real-app-class"
+  assert_contains "${output_file}" "fixed=1"
+}
+
+test_repair_preserves_file_mode() {
+  local workspace output_file handler_file original_mode current_mode
+  workspace="$(mktemp -d)"
+  output_file="${workspace}/output.txt"
+  handler_file="${workspace}/user-applications/mode.desktop"
+
+  write_desktop_file \
+    "${handler_file}" \
+    "Type=Application" \
+    "Name=Mode App" \
+    "Exec=/usr/bin/mode-app" \
+    "NoDisplay=true"
+
+  chmod 600 "${handler_file}"
+  original_mode="$(stat -c '%a' "${handler_file}")"
+
+  write_desktop_file \
+    "${workspace}/system-applications/mode-app.desktop" \
+    "Type=Application" \
+    "Name=Mode App" \
+    "Exec=/usr/bin/mode-app" \
+    "Icon=mode-app" \
+    "StartupWMClass=mode-app"
+
+  run_repair "${workspace}" "${output_file}"
+
+  current_mode="$(stat -c '%a' "${handler_file}")"
+  if [[ "${current_mode}" != "${original_mode}" ]]; then
+    printf 'Expected mode %s, got %s\n' "${original_mode}" "${current_mode}" >&2
+    fail "file mode changed"
+  fi
+}
+
 main() {
   test_match_by_mimetype
   test_match_by_exec
   test_ambiguous_match_is_skipped
   test_complete_entry_is_unchanged
+  test_duplicate_user_dir_does_not_create_false_ambiguity
+  test_desktop_action_icon_does_not_block_repair
+  test_repair_preserves_file_mode
   printf 'PASS\n'
 }
 

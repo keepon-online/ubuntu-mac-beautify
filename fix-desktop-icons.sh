@@ -6,7 +6,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${PROJECT_ROOT}/lib/common.sh"
 
 USER_APPLICATIONS_DIR="${USER_APPLICATIONS_DIR:-${HOME}/.local/share/applications}"
-SYSTEM_APPLICATIONS_DIRS="${SYSTEM_APPLICATIONS_DIRS:-${USER_APPLICATIONS_DIR}:/usr/local/share/applications:/usr/share/applications}"
+SYSTEM_APPLICATIONS_DIRS="${SYSTEM_APPLICATIONS_DIRS:-/usr/local/share/applications:/usr/share/applications}"
 UPDATE_DESKTOP_DATABASE_BIN="${UPDATE_DESKTOP_DATABASE_BIN:-update-desktop-database}"
 
 usage() {
