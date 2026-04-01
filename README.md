@@ -112,6 +112,8 @@ bash ./check.sh
 make check
 ```
 
+GitHub Actions 也会在 `push` 和 `pull_request` 时，分别用 Ubuntu 22.04 与 24.04 运行这些检查和现有回归测试。
+
 GDM 登录界面美化：
 
 ```bash

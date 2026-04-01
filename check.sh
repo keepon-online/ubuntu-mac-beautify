@@ -10,6 +10,7 @@ SCRIPTS=(
   "${PROJECT_ROOT}/uninstall.sh"
   "${PROJECT_ROOT}/fix-desktop-icons.sh"
   "${PROJECT_ROOT}/lib/common.sh"
+  "${PROJECT_ROOT}/tests/ci_workflow_test.sh"
   "${PROJECT_ROOT}/tests/fix_desktop_icons_test.sh"
   "${PROJECT_ROOT}/scripts/install-custom-gdm-prussiangreen.sh"
   "${PROJECT_ROOT}/scripts/repair-gdm-theme-alternative.sh"

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  check:
+    name: Check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04
+          - ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install CI dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck ripgrep
+
+      - name: Run repository checks
+        run: bash ./check.sh
+
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04
+          - ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install CI dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck ripgrep
+
+      - name: Run desktop icon repair regression tests
+        run: bash tests/fix_desktop_icons_test.sh
+
+      - name: Run GDM workflow regression tests
+        run: bash tests/gdm_theme_scripts_test.sh
