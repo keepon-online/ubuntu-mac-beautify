@@ -6,6 +6,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${PROJECT_ROOT}/lib/common.sh"
 
 DISABLE_BLUR="true"
+ROLLBACK_GDM="true"
 DESKTOP="auto"
 
 for arg in "$@"; do
@@ -16,6 +17,9 @@ for arg in "$@"; do
     --keep-blur)
       DISABLE_BLUR="false"
       ;;
+    --keep-gdm)
+      ROLLBACK_GDM="false"
+      ;;
     -h|--help)
       cat <<'EOF'
 Usage: ./reset.sh [options]
@@ -23,6 +27,7 @@ Usage: ./reset.sh [options]
 Options:
   --desktop=DESKTOP    auto (default), gnome, or kde
   --keep-blur          Do not disable Blur my Shell (GNOME only)
+  --keep-gdm           Do not roll back the project custom GDM theme (GNOME only)
 EOF
       exit 0
       ;;
@@ -44,9 +49,21 @@ if [[ "${DESKTOP}" == "gnome" ]]; then
   fi
 
   reset_appearance_settings
+  if [[ "${ROLLBACK_GDM}" == "true" ]]; then
+    if run_project_gdm_rollback; then
+      ROLLBACK_GDM="attempted"
+    else
+      ROLLBACK_GDM="failed"
+    fi
+  else
+    ROLLBACK_GDM="skipped"
+  fi
 else
   if [[ "${DISABLE_BLUR}" == "false" ]]; then
     warn "--keep-blur is a GNOME-only option and will be ignored for KDE."
+  fi
+  if [[ "${ROLLBACK_GDM}" == "false" ]]; then
+    warn "--keep-gdm is a GNOME-only option and will be ignored for KDE."
   fi
 
   reset_kde_appearance_settings
@@ -58,6 +75,7 @@ echo "Project           : ${PROJECT_ROOT}"
 echo "Desktop target    : ${DESKTOP}"
 if [[ "${DESKTOP}" == "gnome" ]]; then
   echo "Blur disabled     : ${DISABLE_BLUR}"
+  echo "GDM rolled back   : ${ROLLBACK_GDM}"
   echo "If GNOME does not refresh immediately, log out and log back in once."
 else
   echo "KDE reset         : attempted"

@@ -8,6 +8,7 @@ source "${PROJECT_ROOT}/lib/common.sh"
 REMOVE_WALLPAPERS="true"
 RESET_SETTINGS="true"
 DISABLE_BLUR="true"
+ROLLBACK_GDM="true"
 DESKTOP="auto"
 
 for arg in "$@"; do
@@ -24,6 +25,9 @@ for arg in "$@"; do
     --keep-blur)
       DISABLE_BLUR="false"
       ;;
+    --keep-gdm)
+      ROLLBACK_GDM="false"
+      ;;
     -h|--help)
       cat <<'EOF'
 Usage: ./uninstall.sh [options]
@@ -33,9 +37,10 @@ Options:
   --keep-wallpapers    Keep wallpapers under ~/.local/share/backgrounds/codex-macos-style
   --skip-reset         Do not reset appearance settings before removal
   --keep-blur          Do not disable Blur my Shell before removal (GNOME only)
+  --keep-gdm           Do not roll back the project custom GDM theme (GNOME only)
 
 This script removes user-level files installed by this project.
-It does not fully revert GDM login screen tweaks.
+It does not fully revert upstream WhiteSur GDM login screen tweaks.
 EOF
       exit 0
       ;;
@@ -59,9 +64,22 @@ if [[ "${DESKTOP}" == "gnome" ]]; then
   if [[ "${RESET_SETTINGS}" == "true" ]]; then
     reset_appearance_settings
   fi
+
+  if [[ "${ROLLBACK_GDM}" == "true" ]]; then
+    if run_project_gdm_rollback; then
+      ROLLBACK_GDM="attempted"
+    else
+      ROLLBACK_GDM="failed"
+    fi
+  else
+    ROLLBACK_GDM="skipped"
+  fi
 else
   if [[ "${DISABLE_BLUR}" == "false" ]]; then
     warn "--keep-blur is a GNOME-only option and will be ignored for KDE."
+  fi
+  if [[ "${ROLLBACK_GDM}" == "false" ]]; then
+    warn "--keep-gdm is a GNOME-only option and will be ignored for KDE."
   fi
 
   if [[ "${RESET_SETTINGS}" == "true" ]]; then
@@ -94,8 +112,8 @@ if [[ "${REMOVE_WALLPAPERS}" == "true" ]]; then
 fi
 
 if [[ "${DESKTOP}" == "gnome" ]]; then
-  warn "GDM login screen changes are not automatically reverted by uninstall.sh."
-  warn "If you changed GDM with install.sh, rerun the WhiteSur GDM tweak manually to restore it."
+  warn "uninstall.sh only rolls back the project custom GDM theme."
+  warn "It does not fully revert any upstream WhiteSur GDM tweaks."
 fi
 
 info "Done"
@@ -104,3 +122,6 @@ echo "Project           : ${PROJECT_ROOT}"
 echo "Desktop target    : ${DESKTOP}"
 echo "Settings reset    : ${RESET_SETTINGS}"
 echo "Wallpapers removed: ${REMOVE_WALLPAPERS}"
+if [[ "${DESKTOP}" == "gnome" ]]; then
+  echo "GDM rolled back   : ${ROLLBACK_GDM}"
+fi

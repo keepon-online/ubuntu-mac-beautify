@@ -394,6 +394,52 @@ apply_appearance_settings() {
   fi
 }
 
+run_project_gdm_beautify() {
+  local project_root="${PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+  local script_path="${project_root}/scripts/install-custom-gdm-prussiangreen.sh"
+
+  if [[ "${GDM_THEME_HELPER_TEST_MODE:-0}" == "1" ]]; then
+    printf 'RUN_PROJECT_GDM_BEAUTIFY=%s\n' "${script_path}"
+    return 0
+  fi
+
+  if [[ ! -f "${script_path}" ]]; then
+    warn "Project GDM beautify script not found: ${script_path}"
+    return 1
+  fi
+
+  info "Applying project GDM prussiangreen override"
+  if ! sudo bash "${script_path}"; then
+    warn "Project GDM beautify step failed."
+    return 1
+  fi
+
+  return 0
+}
+
+run_project_gdm_rollback() {
+  local project_root="${PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+  local script_path="${project_root}/scripts/rollback-custom-gdm-prussiangreen.sh"
+
+  if [[ "${GDM_THEME_HELPER_TEST_MODE:-0}" == "1" ]]; then
+    printf 'RUN_PROJECT_GDM_ROLLBACK=%s\n' "${script_path}"
+    return 0
+  fi
+
+  if [[ ! -f "${script_path}" ]]; then
+    warn "Project GDM rollback script not found: ${script_path}"
+    return 1
+  fi
+
+  info "Rolling back project GDM custom theme"
+  if ! sudo bash "${script_path}"; then
+    warn "Project GDM rollback step failed."
+    return 1
+  fi
+
+  return 0
+}
+
 get_kde_theme_repo_url() {
   local series="$1"
 

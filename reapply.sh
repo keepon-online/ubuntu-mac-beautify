@@ -10,11 +10,13 @@ WALLPAPER_SERIES="ventura"
 WALLPAPER_PATH=""
 SHOW_APPS_BUTTON="false"
 ENABLE_BLUR="true"
+WITH_GDM="true"
 DESKTOP="auto"
 APPLY_KDE_PANEL="true"
 APPLY_KDE_LAUNCHERS="true"
 KDE_ROUND="auto"
 WALLPAPER_DIR="${HOME}/.local/share/backgrounds/codex-macos-style"
+PROJECT_GDM_OVERRIDE="not-run"
 
 for arg in "$@"; do
   case "${arg}" in
@@ -35,6 +37,9 @@ for arg in "$@"; do
       ;;
     --show-apps-button)
       SHOW_APPS_BUTTON="true"
+      ;;
+    --skip-gdm)
+      WITH_GDM="false"
       ;;
     --skip-kde-panel)
       APPLY_KDE_PANEL="false"
@@ -62,6 +67,7 @@ Options:
   --wallpaper=SERIES         Pick an existing wallpaper series in ~/.local/share/backgrounds/codex-macos-style
   --wallpaper-path=/path     Use a specific wallpaper file
   --show-apps-button         Show the app grid button in the dock (GNOME only)
+  --skip-gdm                 Do not restyle the login screen (GNOME only)
   --skip-kde-panel           Do not restyle the Plasma panel (KDE only)
   --skip-kde-launchers       Do not configure default pinned apps on the Plasma panel (KDE only)
   --kde-round                Prefer rounded KDE window decorations
@@ -98,9 +104,19 @@ if [[ "${DESKTOP}" == "gnome" ]]; then
   fi
   enable_extensions "${ENABLE_BLUR}"
   apply_appearance_settings "${MODE}" "${WALLPAPER_PATH}" "${SHOW_APPS_BUTTON}"
+  if [[ "${WITH_GDM}" == "true" ]]; then
+    if run_project_gdm_beautify; then
+      PROJECT_GDM_OVERRIDE="attempted"
+    else
+      PROJECT_GDM_OVERRIDE="failed"
+    fi
+  fi
 else
   if [[ "${SHOW_APPS_BUTTON}" == "true" ]]; then
     warn "--show-apps-button is a GNOME-only option and will be ignored for KDE."
+  fi
+  if [[ "${WITH_GDM}" == "false" ]]; then
+    warn "--skip-gdm is a GNOME-only option and will be ignored for KDE."
   fi
   if [[ "${ENABLE_BLUR}" == "false" ]]; then
     warn "--skip-blur is a GNOME-only option and will be ignored for KDE."
@@ -114,6 +130,8 @@ echo "Project           : ${PROJECT_ROOT}"
 echo "Desktop target    : ${DESKTOP}"
 if [[ "${DESKTOP}" == "gnome" ]]; then
   echo "Applied theme     : $(theme_name_for_mode "${MODE}")"
+  echo "GDM requested     : ${WITH_GDM}"
+  echo "GDM custom theme  : ${PROJECT_GDM_OVERRIDE}"
 else
   echo "Applied theme     : $(kde_theme_label "${WALLPAPER_SERIES}")"
   echo "Rounded windows   : ${KDE_ROUND}"
@@ -121,3 +139,6 @@ else
   echo "Pinned apps       : ${APPLY_KDE_LAUNCHERS}"
 fi
 echo "Wallpaper         : ${WALLPAPER_PATH:-not-updated}"
+if [[ "${DESKTOP}" == "gnome" && "${WITH_GDM}" == "true" ]]; then
+  echo "Rollback GDM      : sudo bash ./scripts/rollback-custom-gdm-prussiangreen.sh"
+fi

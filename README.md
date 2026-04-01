@@ -22,6 +22,7 @@ Ubuntu 24.04 的 macOS 风格美化项目，支持根据用户选择对 `GNOME` 
   - 安装并启用 `Blur my Shell`
   - 配置底部 Dock、左侧窗口按钮、字体和壁纸
   - 可选美化 GDM 登录界面
+  - 提供项目内 GDM 自定义资源与安装/修复/回滚脚本
   - 兼容 Ubuntu 24.04 默认的 `Ubuntu Dock`
 - KDE:
   - 安装 `WhiteSur-gtk-theme` 作为 GTK 应用主题
@@ -74,6 +75,7 @@ bash ./install.sh --desktop=kde --skip-kde-launchers
 
 ```bash
 bash ./reapply.sh --desktop=gnome
+bash ./reapply.sh --desktop=gnome --skip-gdm
 bash ./reapply.sh --desktop=kde
 bash ./reapply.sh --desktop=kde --kde-round
 bash ./reapply.sh --desktop=kde --skip-kde-panel
@@ -84,6 +86,7 @@ bash ./reapply.sh --desktop=kde --skip-kde-launchers
 
 ```bash
 bash ./reset.sh --desktop=gnome
+bash ./reset.sh --desktop=gnome --keep-gdm
 bash ./reset.sh --desktop=kde
 ```
 
@@ -91,6 +94,7 @@ bash ./reset.sh --desktop=kde
 
 ```bash
 bash ./uninstall.sh --desktop=gnome
+bash ./uninstall.sh --desktop=gnome --keep-gdm
 bash ./uninstall.sh --desktop=kde
 ```
 
@@ -106,6 +110,22 @@ make fix-desktop-icons
 ```bash
 bash ./check.sh
 make check
+```
+
+GDM 登录界面美化：
+
+```bash
+bash ./install.sh --desktop=gnome
+bash ./install.sh --desktop=gnome --skip-gdm
+sudo bash ./scripts/install-custom-gdm-prussiangreen.sh
+sudo bash ./scripts/repair-gdm-theme-alternative.sh
+sudo bash ./scripts/rollback-custom-gdm-prussiangreen.sh
+```
+
+详细说明见：
+
+```text
+docs/gdm-login-beautify.md
 ```
 
 也可以直接用 `make`：
@@ -140,10 +160,15 @@ make uninstall-kde
 
 - 请用普通用户执行脚本，不要直接用 `sudo bash ...`
 - `install.sh` 会在需要时自行调用 `sudo`
+- 在 `GNOME` 路线下，`install.sh` 默认会自动尝试应用项目内 GDM 自定义主题；如果不想改登录界面，可加 `--skip-gdm`
+- 在 `GNOME` 路线下，`reapply.sh` 也会默认尝试重新应用项目内 GDM 自定义主题；如果不想改登录界面，可加 `--skip-gdm`
+- 在 `GNOME` 路线下，`reset.sh` 和 `uninstall.sh` 默认会自动把项目自定义 GDM 主题回滚到系统默认 `Yaru`；如果想保留当前登录界面，可加 `--keep-gdm`
+- `scripts/install-custom-gdm-prussiangreen.sh` 等 GDM 脚本仍可单独手动执行，并且需要 `sudo`
 - `fix-desktop-icons.sh` 只修复 `~/.local/share/applications` 下高置信度命中的隐藏 handler 条目，不会改系统 desktop 文件
 - 如果主题没有立即完全生效，注销后重新登录一次
 - 重复执行 `install.sh` 通常是安全的，但会重新下载上游仓库，并覆盖当前外观设置
-- `uninstall.sh` 默认不会自动恢复 GDM 登录界面
+- `uninstall.sh` 默认会回滚项目自定义 GDM 主题，但不会完整恢复上游 WhiteSur 的历史 GDM tweak
+- GDM 登录界面进一步美化的背景、原理和回滚方式见 [docs/gdm-login-beautify.md](docs/gdm-login-beautify.md)
 
 ## 上游项目
 

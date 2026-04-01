@@ -16,6 +16,7 @@ DESKTOP="auto"
 WITH_KDE_PANEL="true"
 WITH_KDE_LAUNCHERS="true"
 KDE_ROUND="auto"
+PROJECT_GDM_OVERRIDE="not-run"
 
 for arg in "$@"; do
   case "${arg}" in
@@ -276,6 +277,12 @@ if [[ "${DESKTOP}" == "gnome" && "${WITH_GDM}" == "true" ]]; then
     sudo ./tweaks.sh -g -c "${MODE}" -t blue -b "${WALLPAPER_DST}" || \
       warn "GDM styling failed."
   )
+
+  if run_project_gdm_beautify; then
+    PROJECT_GDM_OVERRIDE="attempted"
+  else
+    PROJECT_GDM_OVERRIDE="failed"
+  fi
 fi
 
 if [[ "${DESKTOP}" == "gnome" && "${WITH_BLUR}" == "true" ]]; then
@@ -300,7 +307,8 @@ echo "Desktop target    : ${DESKTOP}"
 if [[ "${DESKTOP}" == "gnome" ]]; then
   echo "Applied theme     : $(theme_name_for_mode "${MODE}")"
   echo "Blur my Shell     : ${WITH_BLUR}"
-  echo "GDM styled        : ${WITH_GDM}"
+  echo "GDM requested     : ${WITH_GDM}"
+  echo "GDM custom theme  : ${PROJECT_GDM_OVERRIDE}"
 else
   echo "Applied theme     : $(kde_theme_label "${WALLPAPER_SERIES}")"
   echo "GTK theme         : $(theme_name_for_mode "${MODE}")"
@@ -317,6 +325,9 @@ echo "Wallpaper series  : ${WALLPAPER_SERIES}"
 echo
 if [[ "${DESKTOP}" == "gnome" ]]; then
   echo "If the shell theme or blur effect does not fully apply, log out and log back in once."
+  if [[ "${WITH_GDM}" == "true" ]]; then
+    echo "If you want to roll back the custom GDM theme, run: sudo bash ./scripts/rollback-custom-gdm-prussiangreen.sh"
+  fi
 else
   echo "If the KDE global theme does not fully apply, log into a Plasma session and verify Global Theme, Icons, and Kvantum once in System Settings."
 fi

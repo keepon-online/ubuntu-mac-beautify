@@ -11,6 +11,10 @@ SCRIPTS=(
   "${PROJECT_ROOT}/fix-desktop-icons.sh"
   "${PROJECT_ROOT}/lib/common.sh"
   "${PROJECT_ROOT}/tests/fix_desktop_icons_test.sh"
+  "${PROJECT_ROOT}/scripts/install-custom-gdm-prussiangreen.sh"
+  "${PROJECT_ROOT}/scripts/repair-gdm-theme-alternative.sh"
+  "${PROJECT_ROOT}/scripts/rollback-custom-gdm-prussiangreen.sh"
+  "${PROJECT_ROOT}/tests/gdm_theme_scripts_test.sh"
 )
 
 echo "[INFO] Running bash -n"
