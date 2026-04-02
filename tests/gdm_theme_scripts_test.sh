@@ -59,7 +59,7 @@ helper_out="$(run_helper_probe)"
 rollback_helper_out="$(run_rollback_helper_probe)"
 
 assert_contains "${install_out}" "PROJECT_ROOT=${PROJECT_ROOT}"
-assert_contains "${install_out}" "ASSET=/home/top/project/ubuntu-mac-beautify/assets/gdm/codex-gdm-prussiangreen/gnome-shell-theme.gresource"
+assert_contains "${install_out}" "ASSET=${PROJECT_ROOT}/assets/gdm/codex-gdm-prussiangreen/gnome-shell-theme.gresource"
 assert_contains "${repair_out}" "LINK=/usr/share/gnome-shell/gdm-theme.gresource"
 assert_contains "${rollback_out}" "ORIG=/usr/share/gnome-shell/theme/Yaru/gnome-shell-theme.gresource"
 assert_contains "${helper_out}" "RUN_PROJECT_GDM_BEAUTIFY=${PROJECT_ROOT}/scripts/install-custom-gdm-prussiangreen.sh"
