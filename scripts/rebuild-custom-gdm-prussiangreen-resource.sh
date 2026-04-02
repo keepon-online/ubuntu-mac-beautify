@@ -6,7 +6,10 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RESOURCE_FILE="${PROJECT_ROOT}/assets/gdm/codex-gdm-prussiangreen/gnome-shell-theme.gresource"
 OVERRIDE_FILE="${PROJECT_ROOT}/assets/gdm/codex-gdm-prussiangreen-src/gdm-login-override.css"
 GDM_CSS_PATH="org/gnome/shell/theme/gdm.css"
-OLD_MARKER='/* Codex GDM prussiangreen override */'
+MARKERS=(
+  '/* Codex GDM prussiangreen override */'
+  '/* Codex GDM minimal dark redesign */'
+)
 
 fail() {
   printf '[ERROR] %s\n' "$*" >&2
@@ -40,19 +43,26 @@ done
 
 gdm_css_file="${source_root}/${GDM_CSS_PATH}"
 [[ -f "${gdm_css_file}" ]] || fail "missing extracted gdm.css"
-grep -F -q "${OLD_MARKER}" "${gdm_css_file}" || fail "old GDM override marker not found"
+marker_found=""
+for marker in "${MARKERS[@]}"; do
+  if grep -F -q "${marker}" "${gdm_css_file}"; then
+    marker_found="${marker}"
+    break
+  fi
+done
+[[ -n "${marker_found}" ]] || fail "known GDM override marker not found"
 
-python3 - "${gdm_css_file}" "${OVERRIDE_FILE}" <<'PY'
+python3 - "${gdm_css_file}" "${OVERRIDE_FILE}" "${marker_found}" <<'PY'
 from pathlib import Path
 import sys
 
 css_path = Path(sys.argv[1])
 override_path = Path(sys.argv[2])
-marker = "/* Codex GDM prussiangreen override */"
+marker = sys.argv[3]
 css = css_path.read_text()
 idx = css.find(marker)
 if idx < 0:
-    raise SystemExit("missing old marker")
+    raise SystemExit("missing known marker")
 css_path.write_text(css[:idx].rstrip() + "\n\n" + override_path.read_text().rstrip() + "\n")
 PY
 
